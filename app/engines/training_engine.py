@@ -18,28 +18,28 @@ class TrainingEngine:
         df["date"] = pd.to_datetime(df["date"])
         df = df.set_index("date").sort_index()
 
-        # Riempimento giorni vuoti per continuità temporale
+        # Fill empty days for temporal continuity
         all_days = pd.date_range(start=df.index.min(), end=df.index.max(), freq="D")
         df = df.reindex(all_days, fill_value=0)
 
-        # Calcolo ATL e CTL (Medie mobili esponenziali)
+        # Calculate ATL and CTL (Exponential moving averages)
         df["ATL"] = df["trimp"].ewm(span=7, adjust=False).mean()
         df["CTL"] = df["trimp"].ewm(span=42, adjust=False).mean()
         df["TSB"] = df["CTL"] - df["ATL"]
 
-        # Aggiunta delle zone di stato fisico
+        # Add physical state zones
         df["Status"] = df["TSB"].apply(self._get_zone_label)
 
         return df
 
     def _get_zone_label(self, tsb):
-        """Soglie standard per il TSB (Training Stress Balance)"""
+        """Standard thresholds for TSB (Training Stress Balance)"""
         if tsb > 25:
-            return "Transition (Perdita Fitness)"
+            return "Transition (Fitness Loss)"
         elif 5 < tsb <= 25:
-            return "Freshness (Tapering/Gara)"
+            return "Freshness (Tapering/Race)"
         elif -10 <= tsb <= 5:
-            # Zona Neutra
+            # Neutral Zone
             return "Neutral"
         elif -30 <= tsb < -10:
             return "Optimal Training"

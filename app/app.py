@@ -8,7 +8,7 @@ from engines.training_engine import TrainingEngine
 from visualizer.dashboard_visualizer import DashboardVisualizer
 
 
-# --- 1. CLASSE ASTRATTA ACTIVITY ---
+# --- 1. ABSTRACT ACTIVITY CLASS ---
 class Activity(ABC):
     def __init__(self, name, timestamp, duration_min, avg_heart_rate):
         self.name = name
@@ -19,30 +19,30 @@ class Activity(ABC):
 
     @abstractmethod
     def calculate_trimp(self):
-        """Ogni sport potrebbe avere un moltiplicatore TRIMP diverso."""
-        # Formula base semplificata: Durata (min) * Intensità (HR)
+        """Each sport might have a different TRIMP multiplier."""
+        # Simplified base formula: Duration (min) * Intensity (HR)
         trimp_normalizer = 1
         if self.avg_heart_rate:
             trimp_normalizer = self.avg_heart_rate / 100
         return self.duration_min * trimp_normalizer
 
 
-# --- 2. SOTTOCLASSI SPECIFICHE ---
+# --- 2. SPECIFIC SUBCLASSES ---
 class Run(Activity):
     def calculate_trimp(self):
-        # La corsa è più impattante, potremmo pesare di più l'intensità
+        # Running is more impactful, we could weight the intensity more
         return super().calculate_trimp() * 1.2
 
 
 class Cycling(Activity):
     def calculate_trimp(self):
-        # Qui potresti aggiungere logica per i Watt in futuro
+        # Here you could add logic for Watts in the future
         return super().calculate_trimp() * 1.0
 
 
 class Swim(Activity):
     def calculate_trimp(self):
-        # Il nuoto ha zone cardio diverse
+        # Swimming has different cardio zones
         return super().calculate_trimp() * 0.8
 
 
@@ -52,36 +52,36 @@ class ActivityFactory:
     def create_activity(file_path):
         fit_file = FitFile(file_path)
 
-        # Estraiamo i dati base dai messaggi 'session' del file .fit
+        # Extract basic data from 'session' messages in the .fit file
         data = {}
         for record in fit_file.get_messages("session"):
             for data_entry in record:
                 data[data_entry.name] = data_entry.value
 
-        # Recupero informazioni chiave
+        # Retrieve key information
         sport = data.get("sport", "generic")
         start_time = data.get("start_time", datetime.now())
-        duration = data.get("total_elapsed_time", 0) / 60  # convertiamo in minuti
+        duration = data.get("total_elapsed_time", 0) / 60  # convert to minutes
         avg_hr = data.get("avg_heart_rate", 0)
 
-        # Logica di creazione (Strategy)
+        # Creation logic (Strategy)
         if sport == "running":
-            return Run("Corsa", start_time, duration, avg_hr)
+            return Run("Running", start_time, duration, avg_hr)
         elif sport == "cycling":
-            return Cycling("Bici", start_time, duration, avg_hr)
+            return Cycling("Cycling", start_time, duration, avg_hr)
         elif sport == "swimming":
-            return Swim("Nuoto", start_time, duration, avg_hr)
+            return Swim("Swimming", start_time, duration, avg_hr)
         else:
             return None
 
 
 def initialize_session_state():
-    folder_path = "./sandbox"  # Cartella dove metterai i tuoi file .fit
+    folder_path = "./sandbox"  # Folder where you will put your .fit files
     if "activities" not in st.session_state:
         files = [f for f in os.listdir(folder_path) if f.endswith(".fit")]
-        st.info(f"Cartella sandbox: {folder_path} con {len(files)} file .fit trovati.")
+        st.info(f"Sandbox folder: {folder_path} with {len(files)} .fit files found.")
         if not files:
-            st.info("Nessun file .fit trovato nella cartella sandbox.")
+            st.info("No .fit files found in the sandbox folder.")
             return
 
         activities_list = []
@@ -97,34 +97,34 @@ def initialize_session_state():
 initialize_session_state()
 
 
-# --- 4. INTERFACCIA STREAMLIT ---
+# --- 4. STREAMLIT INTERFACE ---
 def main():
     st.title("Triathlon Coach Dashboard 🏊‍♂️🚴‍♂️🏃‍♂️")
-    st.write("Analisi automatica dei file .fit della tua sandbox")
+    st.write("Automatic analysis of .fit files in your sandbox")
 
     engine = TrainingEngine(st.session_state.activities)
 
-    # Mostriamo i risultati in una tabella
+    # Show results in a table
     display_data = []
     for act in st.session_state.activities:
         display_data.append(
             {
-                "Tipo": act.name,
-                "Data": act.timestamp,
-                "Durata (min)": round(act.duration_min, 2),
-                "HR Media": act.avg_heart_rate,
+                "Type": act.name,
+                "Date": act.timestamp,
+                "Duration (min)": round(act.duration_min, 2),
+                "Avg HR": act.avg_heart_rate,
                 "TRIMP (Est.)": round(act.trimp, 2),
             }
         )
 
     st.dataframe(pd.DataFrame(display_data))
-    st.success(f"Analizzati correttamente {len(st.session_state.activities)} file!")
+    st.success(f"Successfully analyzed {len(st.session_state.activities)} files!")
 
     min_date = min(act.timestamp for act in st.session_state.activities)
     max_date = max(act.timestamp for act in st.session_state.activities)
-    st.info(f"Periodo di analisi: {min_date} - {max_date}")
+    st.info(f"Analysis period: {min_date} - {max_date}")
     today = datetime.now()
-    st.info(f"Oggi: {today}")
+    st.info(f"Today: {today}")
 
     activities_timeseries = pd.Series(
         [act.trimp for act in st.session_state.activities],
