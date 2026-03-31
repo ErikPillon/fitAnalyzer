@@ -19,7 +19,7 @@ class TrainingEngine:
         df = df.set_index("date").sort_index()
 
         # Fill empty days for temporal continuity
-        all_days = pd.date_range(start=df.index.min(), end=df.index.max(), freq="D")
+        all_days = pd.date_range(start=df.index.min(), end=df.index.max(), freq="D", name="date")
         df = df.reindex(all_days, fill_value=0)
 
         # Calculate ATL and CTL (Exponential moving averages)

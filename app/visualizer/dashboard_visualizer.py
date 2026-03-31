@@ -14,7 +14,7 @@ class DashboardVisualizer:
             labels={"value": "Points", "index": "Date"},
             title="Fitness (Cronic Training Load - CTL) and Fatigue (Acute Training Load - ATL)",
         )
-        st.plotly_chart(fig_lines, use_container_width=True)
+        st.plotly_chart(fig_lines, width="stretch")
 
         # 2. Zone Chart: Form State (TSB)
         # Define specific colors for the zones
@@ -42,4 +42,4 @@ class DashboardVisualizer:
             y=-30, line_dash="dash", line_color="red", annotation_text="Danger"
         )
 
-        st.plotly_chart(fig_zones, use_container_width=True)
+        st.plotly_chart(fig_zones, width="stretch")
