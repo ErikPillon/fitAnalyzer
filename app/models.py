@@ -1,28 +1,31 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
+import datetime
 import os
 from fitparse import FitFile
+import pandas as pd
 
 
 # --- 1. ABSTRACT ACTIVITY CLASS ---
 class Activity(ABC):
-    def __init__(self, name, timestamp, duration_min, avg_heart_rate, **kwargs):
+    def __init__(self, name, **kwargs):
         self.name = name
-        self.timestamp = timestamp
-        self.duration_min = duration_min
-        self.avg_heart_rate = avg_heart_rate
-        self.hr = kwargs.get("heart_rate", None)
-        self.altitude = kwargs.get("altitude", None)
+        self.sub_sport = kwargs.get("sub_sport", None)
+        self.timestamp = kwargs.get("timestamp", None)
+        self.duration_min = (
+            kwargs.get("total_elapsed_time", 0) / 60
+        )  # convert to minutes
+        self.avg_heart_rate = kwargs.get("avg_heart_rate", 0)
+        self.altitude: list = kwargs.get("altitude", None)
         self.speed = kwargs.get("speed", None)
         self.watts = kwargs.get("watts", None)
-        self.distance = kwargs.get("distance", None)
-        self.calories = kwargs.get("calories", None)
-        self.temperature = kwargs.get("temperature", None)
-        self.cadence = kwargs.get("cadence", None)
-        self.power = kwargs.get("power", None)
-        self.heart_rate = kwargs.get("heart_rate", None)
-        self.enhanced_altitude = kwargs.get("enhanced_altitude", None)
-        self.enhanced_speed = kwargs.get("enhanced_speed", None)
+        self.distance = kwargs.get("total_distance", None)
+        self.calories: list = kwargs.get("total_calories", None)
+        self.temperature: list = kwargs.get("temperature", None)
+        self.cadence: list = kwargs.get("cadence", None)
+        self.power: list = kwargs.get("power", None)
+        self.heart_rate: list[int] = kwargs.get("heart_rate", None)
+        self.enhanced_altitude: list = kwargs.get("enhanced_altitude", None)
+        self.enhanced_speed: list = kwargs.get("enhanced_speed", None)
         self.trimp = self.calculate_trimp()
 
     @abstractmethod
@@ -79,28 +82,44 @@ class ActivityFactory:
             for data_entry in record:
                 data[data_entry.name] = data_entry.value
 
-        raw_records = list(fit_file.get_messages("record"))
+        # Parse 'record' messages to extract time-series data
+        parsed_records = ActivityFactory.parse_records(fit_file)
+        df = pd.DataFrame(parsed_records)
+        entities = df.columns.tolist()
 
-        entities = [
-            "timestamp",
-            "heart_rate",
-            "altitude",
-            "speed",
-            "watts",
-            "distance",
-            "calories",
-            "temperature",
-            "cadence",
-            "power",
-            "enhanced_altitude",
-            "enhanced_speed",
-        ]
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df = df.set_index("timestamp")
 
-        parsed_records = list(ActivityFactory.parse_records(raw_records, entities))
+        elevation_col = (
+            "enhanced_altitude"
+            if "enhanced_altitude" in df.columns
+            else "altitude"
+            if "altitude" in df.columns
+            else None
+        )
 
-        # Sort by timestamp
-        parsed_records = [r for r in parsed_records if r.get("timestamp") is not None]
-        parsed_records.sort(key=lambda x: x["timestamp"])
+        # 3. GPS track summary
+        if "position_lat" in df.columns and "position_long" in df.columns:
+            # Drop NaN rows where coordinates are missing
+            gps_df = df[["position_lat", "position_long"]].dropna()
+            if not gps_df.empty:
+                # Convert semicircles to degrees
+                gps_df["lat"] = gps_df["position_lat"] * (180.0 / (2**31))
+                gps_df["lon"] = gps_df["position_long"] * (180.0 / (2**31))
+                # st.map(gps_df[["lat", "lon"]])
+
+        # 4. Velocity
+        speed_col = (
+            "enhanced_speed"
+            if "enhanced_speed" in df.columns
+            else "speed"
+            if "speed" in df.columns
+            else None
+        )
+        if speed_col and not df[speed_col].dropna().empty:
+            # Convert m/s to km/h for better readability
+            speed_kmh = df[speed_col].dropna() * 3.6
 
         # Aggregate metrics
         metric_names = [e for e in entities if e != "timestamp"]
@@ -115,41 +134,23 @@ class ActivityFactory:
         # Retrieve key information
         file_name = os.path.basename(file_path)
         sport = data.get("sport", "generic")
-        start_time = data.get("start_time", datetime.now())
-        duration = data.get("total_elapsed_time", 0) / 60  # convert to minutes
-        avg_hr = data.get("avg_heart_rate", 0)
 
         # Creation logic (Strategy)
         if sport == "running":
-            return Run(file_name, start_time, duration, avg_hr, **data)
+            return Run(file_name, **data)
         elif sport == "cycling":
-            return Cycling(file_name, start_time, duration, avg_hr, **data)
+            return Cycling(file_name, **data)
         elif sport == "swimming":
-            return Swim(file_name, start_time, duration, avg_hr, **data)
+            return Swim(file_name, **data)
         else:
             return None
 
     @staticmethod
-    def parse_records(
-        records,
-        entities=[
-            "timestamp",
-            "heart_rate",
-            "altitude",
-            "speed",
-            "watts",
-            "distance",
-            "calories",
-            "temperature",
-            "cadence",
-            "power",
-            "enhanced_altitude",
-            "enhanced_speed",
-        ],
-    ):
-        for record in records:
+    def parse_records(fit_file) -> list[dict]:
+        records = []
+        for record in fit_file.get_messages("record"):
             r_dict = {}
             for data in record:
-                if data.name in entities:
-                    r_dict[data.name] = data.value
-            yield r_dict
+                r_dict[data.name] = data.value
+            records.append(r_dict)
+        return records
