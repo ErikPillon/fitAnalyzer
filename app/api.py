@@ -1,30 +1,33 @@
 import os
+from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Dict, Any
 from app.models import ActivityFactory
 from app.engines.training_engine import TrainingEngine
 
 
 class ActivityModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     name: str
-    sub_sport: str = None
-    timestamp: str = None
+    sub_sport: str | None = None
+    timestamp: datetime | None = None
     duration_min: float = 0.0
-    avg_heart_rate: float = 0.0
-    altitude: List[float | None] = None
-    speed: List[float | None] = None
-    watts: List[float | None] = None
+    avg_heart_rate: float | int = 0.0
+    altitude: List[float | None] | None = None
+    speed: List[float | None] | None = None
+    watts: List[float | None] | None = None
     distance: float = 0.0
-    calories: List[float | None] = None
-    temperature: List[float | None] = None
-    cadence: List[float | None] = None
-    power: List[float | None] = None
+    calories: float | int | None = None
+    temperature: List[float | None] | None = None
+    cadence: List[float | None] | None = None
+    power: List[float | None] | None = None
     heart_rate: List[int | None] | None = None
-    enhanced_altitude: List[float | None] = None
-    enhanced_speed: List[float | None] = None
+    enhanced_altitude: List[float | None] | None = None
+    enhanced_speed: List[float | None] | None = None
     trimp: float = 0.0
 
 
@@ -35,6 +38,10 @@ class AnalysisResult(BaseModel):
 
 # Global cache to store the calculated results
 cache = {"activities": [], "metrics": []}
+
+
+def serialize_activity(activity) -> ActivityModel:
+    return ActivityModel.model_validate(activity)
 
 
 @asynccontextmanager
@@ -78,11 +85,13 @@ app = FastAPI(lifespan=lifespan)
 def get_single_activity(file_name: str):
     for activity in cache["activities"]:
         if activity.name == file_name:
-            breakpoint()  # Debugging line to inspect the activity object
-            return activity
+            return serialize_activity(activity)
     raise HTTPException(status_code=404, detail="Activity not found")
 
 
 @app.get("/api/analysis", response_model=AnalysisResult)
 def get_analysis():
-    return {"activities": cache["activities"], "metrics": cache["metrics"]}
+    return {
+        "activities": [serialize_activity(activity) for activity in cache["activities"]],
+        "metrics": cache["metrics"],
+    }
