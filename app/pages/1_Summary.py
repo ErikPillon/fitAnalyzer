@@ -23,11 +23,11 @@ class MetricParser:
             return pd.Timestamp.today().normalize()
         return self.activities_df["timestamp"].max().normalize()
 
-    def _weekly_activities(self) -> pd.DataFrame:
+    def _reference_activities(self, delta_days=7) -> pd.DataFrame:
         if self.activities_df.empty or "timestamp" not in self.activities_df.columns:
             return self.activities_df.iloc[0:0]
 
-        week_start = self._reference_timestamp() - pd.Timedelta(days=7)
+        week_start = self._reference_timestamp() - pd.Timedelta(days=delta_days)
         mask = (
             self.activities_df["timestamp"].ge(week_start)
             & self.activities_df["timestamp"].notna()
@@ -35,25 +35,42 @@ class MetricParser:
         return self.activities_df.loc[mask]
 
     def get_time_this_week(self, activity_type=None):
-        activities_df = self._weekly_activities()
+        activities_df = self._reference_activities()
         if activity_type is not None and "activity_type" in activities_df.columns:
             activities_df = activities_df[
                 activities_df["activity_type"] == activity_type
             ]
         return float(activities_df.get("duration_min", pd.Series(dtype=float)).sum())
 
-    def get_time_cycling(self):
-        return self.get_time_this_week("cycling")
+    def get_time_last_two_weeks(self, activity_type=None):
+        activities_df = self._reference_activities(delta_days=14)
+        if activity_type is not None and "activity_type" in activities_df.columns:
+            activities_df = activities_df[
+                activities_df["activity_type"] == activity_type
+            ]
+        return float(activities_df.get("duration_min", pd.Series(dtype=float)).sum())
 
-    def get_time_swimming(self):
-        return self.get_time_this_week("swimming")
+    def get_time_cycling(self) -> tuple[float, float]:
+        return self.get_time_this_week("cycling"), self.get_time_last_two_weeks(
+            "cycling"
+        )
 
-    def get_time_running(self):
-        return self.get_time_this_week("running")
+    def get_time_swimming(self) -> tuple[float, float]:
+        return self.get_time_this_week("swimming"), self.get_time_last_two_weeks(
+            "swimming"
+        )
 
-    def get_trimp_this_week(self):
-        activities_df = self._weekly_activities()
-        return float(activities_df.get("trimp", pd.Series(dtype=float)).sum())
+    def get_time_running(self) -> tuple[float, float]:
+        return self.get_time_this_week("running"), self.get_time_last_two_weeks(
+            "running"
+        )
+
+    def get_trimp_this_week(self) -> tuple[float, float]:
+        activities_df = self._reference_activities()
+        activities_2w_df = self._reference_activities(delta_days=14)
+        return float(activities_df.get("trimp", pd.Series(dtype=float)).sum()), float(
+            activities_2w_df.get("trimp", pd.Series(dtype=float)).sum()
+        )
 
 
 @st.cache_data
@@ -86,19 +103,45 @@ def app():
     time_week, time_cycling, time_swimming, time_running, trimp_week = st.columns(5)
 
     with time_week:
-        st.metric("Time This Week", f"{parser.get_time_this_week() / 60:.1f} hrs")
+        this_week_time = parser.get_time_this_week()
+        last_two_weeks_time = parser.get_time_last_two_weeks()
+        st.metric(
+            "Time This Week",
+            f"{this_week_time / 60:.1f} hrs",
+            delta=f"{(2 * this_week_time - last_two_weeks_time) / 60:.1f} hrs",
+        )
 
     with time_cycling:
-        st.metric("Time Cycling", f"{parser.get_time_cycling() / 60:.1f} hrs")
+        this_week_time, last_two_weeks_time = parser.get_time_cycling()
+        st.metric(
+            "Time Cycling",
+            f"{this_week_time / 60:.1f} hrs",
+            delta=f"{(2 * this_week_time - last_two_weeks_time) / 60:.1f} hrs",
+        )
 
     with time_swimming:
-        st.metric("Time Swimming", f"{parser.get_time_swimming() / 60:.1f} hrs")
+        this_week_time, last_two_weeks_time = parser.get_time_swimming()
+        st.metric(
+            "Time Swimming",
+            f"{this_week_time / 60:.1f} hrs",
+            delta=f"{(2 * this_week_time - last_two_weeks_time) / 60:.1f} hrs",
+        )
 
     with time_running:
-        st.metric("Time Running", f"{parser.get_time_running() / 60:.1f} hrs")
+        this_week_time, last_two_weeks_time = parser.get_time_running()
+        st.metric(
+            "Time Running",
+            f"{this_week_time / 60:.1f} hrs",
+            delta=f"{(2 * this_week_time - last_two_weeks_time) / 60:.1f} hrs",
+        )
 
     with trimp_week:
-        st.metric("TRIMP This Week", f"{parser.get_trimp_this_week():.1f}")
+        this_week_time, last_two_weeks_time = parser.get_trimp_this_week()
+        st.metric(
+            "TRIMP This Week",
+            f"{this_week_time:.1f}",
+            delta=f"{(2 * this_week_time - last_two_weeks_time):.1f}",
+        )
 
 
 app()

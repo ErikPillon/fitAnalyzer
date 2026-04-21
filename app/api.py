@@ -3,16 +3,24 @@ from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 from typing import List, Dict, Any
 from app.models import ActivityFactory
 from app.engines.training_engine import TrainingEngine
+
+
+ACTIVITY_TYPE_MAP = {
+    "Run": "running",
+    "Cycling": "cycling",
+    "Swim": "swimming",
+}
 
 
 class ActivityModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     name: str
+    activity_type: str | None = None
     sub_sport: str | None = None
     timestamp: datetime | None = None
     duration_min: float = 0.0
@@ -29,6 +37,24 @@ class ActivityModel(BaseModel):
     enhanced_altitude: List[float | None] | None = None
     enhanced_speed: List[float | None] | None = None
     trimp: float = 0.0
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_activity_type(cls, value):
+        if isinstance(value, dict):
+            return value
+
+        activity_type = ACTIVITY_TYPE_MAP.get(type(value).__name__)
+        if activity_type is None:
+            return value
+
+        parsed_value = {
+            field_name: getattr(value, field_name, None)
+            for field_name in cls.model_fields
+            if field_name != "activity_type"
+        }
+        parsed_value["activity_type"] = activity_type
+        return parsed_value
 
 
 class AnalysisResult(BaseModel):
