@@ -92,6 +92,8 @@ def get_single_activity(file_name: str):
 @app.get("/api/analysis", response_model=AnalysisResult)
 def get_analysis():
     return {
-        "activities": [serialize_activity(activity) for activity in cache["activities"]],
+        "activities": [
+            serialize_activity(activity) for activity in cache["activities"]
+        ],
         "metrics": cache["metrics"],
     }
