@@ -111,9 +111,9 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/api/single-activity/{file_name}", response_model=ActivityModel)
 def get_single_activity(file_name: str):
-    for activity in cache["activities"]:
-        if activity.name == file_name:
-            return serialize_activity(activity)
+    activity = next((act for act in cache["activities"] if act.name == file_name), None)
+    if activity:
+        return serialize_activity(activity)
     raise HTTPException(status_code=404, detail="Activity not found")
 
 
