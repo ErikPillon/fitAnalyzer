@@ -26,6 +26,8 @@ class Activity(ABC):
         self.heart_rate: list[int] = kwargs.get("heart_rate", None)
         self.enhanced_altitude: list = kwargs.get("enhanced_altitude", None)
         self.enhanced_speed: list = kwargs.get("enhanced_speed", None)
+        self.position_lat: list = kwargs.get("position_lat", None)
+        self.position_long: list = kwargs.get("position_long", None)
         self.trimp = self.calculate_trimp()
 
     @abstractmethod

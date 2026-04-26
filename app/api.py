@@ -36,6 +36,8 @@ class ActivityModel(BaseModel):
     heart_rate: List[int | None] | None = None
     enhanced_altitude: List[float | None] | None = None
     enhanced_speed: List[float | None] | None = None
+    position_lat: List[float | None] | None = None
+    position_long: List[float | None] | None = None
     trimp: float = 0.0
 
     @model_validator(mode="before")
